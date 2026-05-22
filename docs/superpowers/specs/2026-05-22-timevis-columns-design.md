@@ -49,16 +49,26 @@ timevis(items, groups, columns) ──► widget$x$columns  (raw spec)
                                   │
                                   ▼
                        JS: applyColumns(spec)
-                       1. compute derived dates if autoDates
-                       2. for each group: rebuild `content` HTML
-                          using a <div class="timevis-cols">…</div>
-                       3. insert single header row above label panel
-                          via DOM injection into .vis-labelset
-                       4. inject CSS for widths/alignment
+                       1. cache the raw groups array (for autoDates parent
+                          recursion via nestedGroups)
+                       2. install a vis-timeline `groupTemplate` function
+                          that, per group, returns the multi-column HTML
+                          row (and lazily computes auto-dates on demand)
+                       3. inject the sticky header row as a SIBLING of
+                          .vis-timeline (NOT inside .vis-panel.vis-left),
+                          to avoid displacing .vis-labelset and breaking
+                          label/item lane alignment
+                       4. CSS provides widths/alignment + display:flex
 ```
 
-Re-runs whenever `setColumns`, `setGroups`, or `setItems` fires (subscribe
-to dataset events on the JS side).
+Re-runs whenever `setColumns`, `setGroups`, or `setItems` fires. vis-timeline
+itself re-invokes `groupTemplate` on its own redraw cycles, so collapse/expand
+of nested groups keeps using the multi-column layout automatically.
+
+We deliberately avoid rewriting `group.content`: vis-timeline owns the caret
++ click handling for nested groups and any custom HTML stuffed into a parent
+group's `content` is unreliably re-rendered. `groupTemplate` is the official
+vis-timeline extension point for this.
 
 ## HTML template per group
 
