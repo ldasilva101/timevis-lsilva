@@ -27,7 +27,7 @@ hand-roll HTML in `groups$content` and per-folder header rows.
 | `field`  | string      | yes      | Column name on `groups` df, OR the virtual fields `"start"` / `"end"` (only when `autoDates = TRUE`) |
 | `header` | string      | no       | Header label. Defaults to `field`. |
 | `width`  | integer px  | no       | Column width. Default 120. |
-| `format` | string      | no       | `strftime` format applied if value is `Date`/`POSIXt`. Default `"%Y-%m-%d"`. |
+| `format` | string      | no       | moment.js format string applied if value is a date. Default `"YYYY-MM-DD"`. moment.js is already bundled with vis-timeline so no extra dependency. |
 | `align`  | string      | no       | `"left" | "center" | "right"`. Default `"left"` for col 1, `"center"` otherwise. |
 
 Plus one top-level flag on the spec list: passed as a second arg.
@@ -70,8 +70,10 @@ to dataset events on the JS side).
 </div>
 ```
 
-Header row uses class `timevis-cols-header` and is inserted as a sibling of
-`.vis-labelset` (positioned above it), so it does not consume a timeline lane.
+Header row uses class `timevis-cols-header` and is inserted as the first child
+of the left panel container (`.vis-panel.vis-left`) with
+`position: sticky; top: 0; z-index: 2` so it stays pinned at the top of the
+label panel during vertical scroll and never consumes a timeline lane.
 
 ## Files changed
 

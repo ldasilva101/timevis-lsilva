@@ -32,3 +32,34 @@
   background: #FDFDFD;
   box-shadow: 0 0 2px #ddd;
 }
+
+/* Multi-column group label support (setColumns / columns argument) */
+.timevis.html-widget .timevis-cols {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.timevis.html-widget .timevis-cols .timevis-col {
+  display: inline-block;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+.timevis.html-widget .timevis-cols-header-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f3f3f3;
+  border-bottom: 1px solid #ccc;
+  font-weight: bold;
+}
+.timevis.html-widget .timevis-cols-header-wrap .timevis-cols-header {
+  padding: 4px 0;
+}
+/* keep vis-timeline's group caret aligned with the first column text */
+.timevis.html-widget .vis-labelset .vis-label .vis-inner {
+  padding: 0;
+}

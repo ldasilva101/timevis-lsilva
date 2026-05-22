@@ -60,6 +60,19 @@
 #' another time zone by providing a number between -15 to 15 to specify the
 #' number of hours offset from UTC. For example, use `0` to display in UTC,
 #' and use `-4` to display in a timezone that is 4 hours behind UTC.
+#' @param columns Optional list of column specifications to render the left
+#' label panel as a multi-column table aligned with the (optionally nested)
+#' groups. Each element is a named list with fields \code{field} (required;
+#' the name of a column in \code{groups}, or the virtual fields \code{"start"}
+#' / \code{"end"} when \code{autoDates = TRUE}), \code{header},
+#' \code{width} (px, default 120), \code{format} (moment.js format,
+#' default \code{"YYYY-MM-DD"}), and \code{align}. A sticky header row is
+#' rendered at the top of the label panel and does not consume a timeline
+#' lane. See also \code{\link[timevis]{setColumns}}.
+#' @param autoDates If \code{TRUE}, virtual \code{"start"} / \code{"end"}
+#' fields used in \code{columns} are derived from items (leaf groups: min
+#' start / max end across items in that group; parent groups: recursive min/max
+#' over their \code{nestedGroups}).
 #' @return A timeline visualization \code{htmlwidgets} object
 #' @section Data format:
 #' The \code{data} parameter supplies the input dataframe that describes the
@@ -367,7 +380,8 @@
 #' @export
 timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
                     options = list(), width = NULL, height = NULL, elementId = NULL,
-                    loadDependencies = TRUE, timezone = NULL) {
+                    loadDependencies = TRUE, timezone = NULL,
+                    columns = NULL, autoDates = FALSE) {
 
   # Validate the input data
   if (missing(data)) {
@@ -447,6 +461,8 @@ timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
     fit <- FALSE
   }
 
+  columns <- tv_normalize_columns(columns, autoDates)
+
   # forward options using x
   x = list(
     items = items,
@@ -457,7 +473,8 @@ timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
     options = options,
     height = height,
     timezone = timezone,
-    crosstalk = crosstalk_opts
+    crosstalk = crosstalk_opts,
+    columns = columns
   )
 
   # Allow a list of API functions to be called on the timevis after

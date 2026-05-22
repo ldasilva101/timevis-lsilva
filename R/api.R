@@ -463,6 +463,50 @@ setGroups <- function(id, data) {
   callJS()
 }
 
+#' Set (or update) the multi-column label panel of a timeline
+#'
+#' Render the left label panel of a timeline as a multi-column table aligned
+#' with the (optionally nested) groups, with a sticky header row that does not
+#' consume a timeline lane.
+#'
+#' @param id Timeline id or a \code{timevis} object (the output from
+#'   \code{timevis()})
+#' @param columns A list of column specifications. Each element is a named
+#'   list with fields \code{field} (required), \code{header}, \code{width},
+#'   \code{format} (moment.js, default \code{"YYYY-MM-DD"}), and \code{align}.
+#'   See the \code{columns} parameter of \code{\link[timevis]{timevis}} for a
+#'   full description of each field.
+#' @param autoDates If \code{TRUE}, virtual \code{"start"} / \code{"end"}
+#'   fields are derived from items. Default \code{FALSE}.
+#' @examples
+#' \dontrun{
+#' items <- data.frame(
+#'   id = 1:4,
+#'   content = c("Spec", "Build", "Hire", "Onboard"),
+#'   start = c("2026-05-01","2026-05-10","2026-05-05","2026-05-15"),
+#'   end   = c("2026-05-09","2026-05-19","2026-05-14","2026-05-25"),
+#'   group = c("eng","eng","hr","hr")
+#' )
+#' groups <- data.frame(
+#'   id      = c("eng","hr","t1","t2","t3","t4"),
+#'   content = c("Engineering","HR","Spec","Build","Hire","Onboard"),
+#'   nestedGroups = I(list(list("t1","t2"), list("t3","t4"),
+#'                         NULL, NULL, NULL, NULL))
+#' )
+#' timevis(items, groups = groups) %>%
+#'   setColumns(list(
+#'     list(field = "content", header = "Task",  width = 160),
+#'     list(field = "start",   header = "Start", width = 100),
+#'     list(field = "end",     header = "End",   width = 100)
+#'   ), autoDates = TRUE)
+#' }
+#' @export
+setColumns <- function(id, columns, autoDates = FALSE) {
+  method <- "setColumns"
+  columns <- tv_normalize_columns(columns, autoDates)
+  callJS()
+}
+
 #' Update the configuration options of a timeline
 #' @param id Timeline id or a \code{timevis} object (the output from \code{timevis()})
 #' @param options A named list containing updated configuration options to use.

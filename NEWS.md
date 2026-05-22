@@ -3,6 +3,11 @@
 - TODO: make a pull request on crosstalk website to add timevis as a compatible widget
 - Add {crosstalk} support for linked brushing and filtering with other crosstalk-enabled widgets (#95)
 - If `id` column is not provided in the data for a timevis, the row names will be used as IDs
+- Add native multi-column collapsible group labels via the new `columns` /
+  `autoDates` arguments on `timevis()` and the new `setColumns()` function. The
+  left label panel can now be rendered as a multi-column table aligned with
+  (optionally nested) groups, with a sticky header row that does not consume a
+  timeline lane. Dates can be auto-derived from items.
 
 # timevis 2.1.0 (2022-10-22)
 
