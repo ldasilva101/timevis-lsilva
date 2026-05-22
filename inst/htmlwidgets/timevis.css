@@ -38,16 +38,24 @@
   display: flex;
   align-items: center;
   font-size: 12px;
+  line-height: 1.4;
   white-space: nowrap;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 .timevis.html-widget .timevis-cols .timevis-col {
   display: inline-block;
+  flex: 0 0 auto;
   padding: 0 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
   vertical-align: middle;
 }
+/* Sticky header row sits ABOVE the .vis-timeline DOM (as a sibling), so it
+   does NOT push .vis-labelset down. This preserves the alignment between
+   group labels and item lanes, and keeps collapse-caret hit areas correct. */
 .timevis.html-widget .timevis-cols-header-wrap {
   position: sticky;
   top: 0;
@@ -55,11 +63,16 @@
   background: #f3f3f3;
   border-bottom: 1px solid #ccc;
   font-weight: bold;
-}
-.timevis.html-widget .timevis-cols-header-wrap .timevis-cols-header {
   padding: 4px 0;
+  box-sizing: border-box;
 }
-/* keep vis-timeline's group caret aligned with the first column text */
+/* When columns are in use, neutralize default vis-timeline padding on group
+   labels so the inline column widths line up with the header row. */
+.timevis.html-widget .vis-labelset .vis-label,
 .timevis.html-widget .vis-labelset .vis-label .vis-inner {
   padding: 0;
+  margin: 0;
+}
+.timevis.html-widget .vis-labelset .vis-label .vis-inner {
+  width: 100%;
 }

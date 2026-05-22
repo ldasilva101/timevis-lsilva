@@ -472,15 +472,19 @@ HTMLWidgets.widget({
         try { timeline.setGroups(rebuilt); }
         finally { applyingColumns = false; }
 
-        // inject / replace sticky header row in the left panel
-        var leftPanel = container.querySelector('.vis-panel.vis-left');
-        if (leftPanel) {
-          var existing = leftPanel.querySelector('.timevis-cols-header-wrap');
-          if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        // inject / replace sticky header row above the timeline.
+        // IMPORTANT: insert as a sibling of .vis-timeline (NOT inside
+        // .vis-panel.vis-left), otherwise it would push .vis-labelset down
+        // and break alignment between group labels and item lanes (which
+        // would also misroute click hit-areas on collapse carets).
+        var visRoot = container.querySelector('.vis-timeline');
+        var existing = container.querySelector('.timevis-cols-header-wrap');
+        if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+        if (visRoot && visRoot.parentNode) {
           var headerEl = document.createElement('div');
           headerEl.className = 'timevis-cols-header-wrap';
           headerEl.innerHTML = buildRow({}, true);
-          leftPanel.insertBefore(headerEl, leftPanel.firstChild);
+          visRoot.parentNode.insertBefore(headerEl, visRoot);
         }
       },
       setOptions : function(params) {
