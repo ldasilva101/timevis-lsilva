@@ -20,9 +20,7 @@ HTMLWidgets.widget({
     var ctFil = null;
     var allItems;
     var colSpec = null;             // current { specs:[...], autoDates: bool } or null
-    var originalGroupContent = {};  // groupId -> original content (to allow rebuild)
     var lastGroupsArray = null;     // raw groups array last passed to timeline.setGroups
-    var applyingColumns = false;    // re-entry guard to prevent setGroups -> applyColumns loop
 
     return {
 
@@ -160,7 +158,6 @@ HTMLWidgets.widget({
         // set the data items and groups
         timeline.itemsData.clear();
         timeline.itemsData.add(opts.items);
-        originalGroupContent = {};
         lastGroupsArray = opts.groups || null;
         timeline.setGroups(opts.groups);
 
@@ -299,12 +296,9 @@ HTMLWidgets.widget({
         if (colSpec) this.applyColumns();
       },
       setGroups : function(params) {
-        if (!applyingColumns) {
-          originalGroupContent = {};
-          lastGroupsArray = params.data || null;
-        }
+        lastGroupsArray = params.data || null;
         timeline.setGroups(params.data);
-        if (colSpec && !applyingColumns) this.applyColumns();
+        if (colSpec) this.applyColumns();
       },
       setColumns : function(params) {
         // params.columns may be null/undefined to clear
@@ -317,173 +311,153 @@ HTMLWidgets.widget({
         this.applyColumns();
       },
 
-      // remove header row + restore original group contents
+      // remove header row + clear the custom groupTemplate
       clearColumns : function() {
-        // re-set the original groups array if we have it cached
-        if (lastGroupsArray) {
-          applyingColumns = true;
-          try { timeline.setGroups(lastGroupsArray); }
-          finally { applyingColumns = false; }
-        }
-        originalGroupContent = {};
+        // restore default group rendering by clearing groupTemplate
+        timeline.setOptions({ groupTemplate: null });
         var headerWrap = container.querySelector('.timevis-cols-header-wrap');
         if (headerWrap && headerWrap.parentNode) {
           headerWrap.parentNode.removeChild(headerWrap);
         }
       },
 
-      // (re)render group content as multi-column rows and inject sticky header
+      // (re)render group labels as multi-column rows via vis-timeline's
+      // groupTemplate option, and inject sticky header row above the timeline.
       applyColumns : function() {
         if (!colSpec) return;
         var specs = colSpec.specs;
         var autoDates = !!colSpec.autoDates;
-        // Work from the cached raw groups array (preserves nestedGroups, etc.)
-        var groups = lastGroupsArray;
-        if (!groups || groups.length === 0) return;
 
-        // build a quick map of items per group for autoDates
-        var itemsByGroup = {};
-        if (autoDates) {
-          var allItemsArr = timeline.itemsData.get();
-          for (var i = 0; i < allItemsArr.length; i++) {
-            var it = allItemsArr[i];
-            if (it.group === undefined || it.group === null) continue;
-            (itemsByGroup[it.group] = itemsByGroup[it.group] || []).push(it);
-          }
-        }
-
-        // build a map: groupId -> group object
-        var groupById = {};
-        for (var j = 0; j < groups.length; j++) groupById[groups[j].id] = groups[j];
-
+        // ---- helpers ----
         function parseDate(v) {
           if (v === null || v === undefined || v === "") return null;
           if (v instanceof Date) return v;
           var d = new Date(v);
           return isNaN(d.getTime()) ? null : d;
         }
-
-        // recursive autoDates: leaf = min/max of items in group; parent = min/max of nested
-        var dateCache = {}; // gid -> { start: Date|null, end: Date|null }
-        function computeDates(gid) {
-          if (Object.prototype.hasOwnProperty.call(dateCache, gid)) return dateCache[gid];
-          var g = groupById[gid];
-          var startD = null, endD = null;
-          var nested = g && g.nestedGroups;
-          if (nested && nested.length) {
-            for (var k = 0; k < nested.length; k++) {
-              var cd = computeDates(nested[k]);
-              if (cd.start && (!startD || cd.start < startD)) startD = cd.start;
-              if (cd.end   && (!endD   || cd.end   > endD  )) endD   = cd.end;
-            }
-          }
-          var its = itemsByGroup[gid] || [];
-          for (var m = 0; m < its.length; m++) {
-            var s = parseDate(its[m].start);
-            var e = parseDate(its[m].end) || s;
-            if (s && (!startD || s < startD)) startD = s;
-            if (e && (!endD   || e > endD  )) endD   = e;
-          }
-          return (dateCache[gid] = { start : startD, end : endD });
-        }
-
         function fmtDate(d, format) {
           if (!d) return "";
           if (typeof vis !== 'undefined' && vis.moment) {
             return vis.moment(d).format(format || "YYYY-MM-DD");
           }
-          // fallback: ISO date
           return d.toISOString().slice(0, 10);
         }
-
         function escapeHtml(s) {
           if (s === null || s === undefined) return "";
           return String(s)
             .replace(/&/g, "&amp;").replace(/</g, "&lt;")
             .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
-
-        function valueFor(group, spec) {
-          var f = spec.field;
-          if (autoDates && (f === "start" || f === "end") &&
-              (group[f] === undefined || group[f] === null || group[f] === "")) {
-            var dd = computeDates(group.id);
-            return fmtDate(dd[f], spec.format);
-          }
-          var v = group[f];
-          if (v === undefined || v === null) return "";
-          var asDate = parseDate(v);
-          if (asDate && (f === "start" || f === "end" ||
-                         /date|time/i.test(f))) {
-            return fmtDate(asDate, spec.format);
-          }
-          return v;
-        }
-
-        function buildRow(group, isHeader) {
-          var parts = ['<div class="timevis-cols' +
-                       (isHeader ? ' timevis-cols-header' : '') + '">'];
+        function buildHeaderHTML() {
+          var parts = ['<div class="timevis-cols timevis-cols-header">'];
           for (var n = 0; n < specs.length; n++) {
             var s = specs[n];
-            var raw = isHeader ? (s.header || s.field) : valueFor(group, s);
-            // for non-header first column, preserve any HTML the user already
-            // had in `content` (e.g. their group name with formatting)
-            var inner;
-            if (isHeader) {
-              inner = escapeHtml(raw);
-            } else if (n === 0 && s.field === "content") {
-              inner = raw; // leave HTML
-            } else {
-              inner = escapeHtml(raw);
-            }
             parts.push(
-              '<span class="timevis-col" style="width:' + s.width +
-              'px;text-align:' + s.align + '">' + inner + '</span>'
+              '<span class="timevis-col" style="display:inline-block;width:' +
+              s.width + 'px;flex:0 0 ' + s.width +
+              'px;text-align:' + s.align + '">' +
+              escapeHtml(s.header || s.field) + '</span>'
             );
           }
           parts.push('</div>');
           return parts.join('');
         }
 
-        // build a new groups array with rewritten `content`, preserving all
-        // other group fields (nestedGroups, showNested, className, ...)
-        var rebuilt = [];
-        for (var p = 0; p < groups.length; p++) {
-          var grp = groups[p];
-          if (!Object.prototype.hasOwnProperty.call(originalGroupContent, grp.id)) {
-            originalGroupContent[grp.id] = grp.content;
-          }
-          var copy = {};
-          for (var key in grp) {
-            if (Object.prototype.hasOwnProperty.call(grp, key)) copy[key] = grp[key];
-          }
-          // synth group for valueFor: ensures field="content" uses the ORIGINAL
-          var synth = {};
-          for (var k2 in copy) {
-            if (Object.prototype.hasOwnProperty.call(copy, k2)) synth[k2] = copy[k2];
-          }
-          synth.content = originalGroupContent[grp.id];
-          copy.content = buildRow(synth, false);
-          rebuilt.push(copy);
+        // closure captures specs/autoDates and recomputes auto dates on demand
+        function makeTemplate() {
+          return function(group, element) {
+            // re-derive item & group maps lazily on each call so updates work
+            var groupsArr = lastGroupsArray || [];
+            var groupById = {};
+            for (var j = 0; j < groupsArr.length; j++) {
+              groupById[groupsArr[j].id] = groupsArr[j];
+            }
+            var itemsByGroup = {};
+            if (autoDates) {
+              var arr = timeline.itemsData.get();
+              for (var i = 0; i < arr.length; i++) {
+                var it = arr[i];
+                if (it.group === undefined || it.group === null) continue;
+                (itemsByGroup[it.group] = itemsByGroup[it.group] || []).push(it);
+              }
+            }
+            var dateCache = {};
+            function computeDates(gid) {
+              if (Object.prototype.hasOwnProperty.call(dateCache, gid)) {
+                return dateCache[gid];
+              }
+              var g = groupById[gid];
+              var startD = null, endD = null;
+              var nested = g && g.nestedGroups;
+              if (nested && nested.length) {
+                for (var k = 0; k < nested.length; k++) {
+                  var cd = computeDates(nested[k]);
+                  if (cd.start && (!startD || cd.start < startD)) startD = cd.start;
+                  if (cd.end   && (!endD   || cd.end   > endD  )) endD   = cd.end;
+                }
+              }
+              var its = itemsByGroup[gid] || [];
+              for (var m = 0; m < its.length; m++) {
+                var s = parseDate(its[m].start);
+                var e = parseDate(its[m].end) || s;
+                if (s && (!startD || s < startD)) startD = s;
+                if (e && (!endD   || e > endD  )) endD   = e;
+              }
+              return (dateCache[gid] = { start: startD, end: endD });
+            }
+
+            function valueFor(g, spec) {
+              var f = spec.field;
+              if (f === "content") return g.content;
+              if (autoDates && (f === "start" || f === "end") &&
+                  (g[f] === undefined || g[f] === null || g[f] === "")) {
+                return fmtDate(computeDates(g.id)[f], spec.format);
+              }
+              var v = g[f];
+              if (v === undefined || v === null) return "";
+              var asDate = parseDate(v);
+              if (asDate && (f === "start" || f === "end" ||
+                             /date|time/i.test(f))) {
+                return fmtDate(asDate, spec.format);
+              }
+              return v;
+            }
+
+            // Build the row HTML and return it. vis-timeline will set this
+            // as innerHTML of the label element. Returning a string lets
+            // vis-timeline handle nested-group caret + click wiring itself.
+            var parts = ['<div class="timevis-cols">'];
+            for (var n = 0; n < specs.length; n++) {
+              var s = specs[n];
+              var raw = valueFor(group, s);
+              var inner = (n === 0 && s.field === "content")
+                ? (raw == null ? "" : String(raw))   // pass HTML through
+                : escapeHtml(raw);
+              parts.push(
+                '<span class="timevis-col" style="display:inline-block;width:' +
+                s.width + 'px;flex:0 0 ' + s.width +
+                'px;text-align:' + s.align + '">' + inner + '</span>'
+              );
+            }
+            parts.push('</div>');
+            return parts.join('');
+          };
         }
 
-        // re-apply via setGroups with a re-entry guard so we don't loop
-        applyingColumns = true;
-        try { timeline.setGroups(rebuilt); }
-        finally { applyingColumns = false; }
+        // hand the template to vis-timeline
+        timeline.setOptions({ groupTemplate: makeTemplate() });
+        // force a redraw so existing groups re-render through the template
+        if (typeof timeline.redraw === 'function') timeline.redraw();
 
         // inject / replace sticky header row above the timeline.
-        // IMPORTANT: insert as a sibling of .vis-timeline (NOT inside
-        // .vis-panel.vis-left), otherwise it would push .vis-labelset down
-        // and break alignment between group labels and item lanes (which
-        // would also misroute click hit-areas on collapse carets).
+        // Sibling of .vis-timeline so we never displace .vis-labelset.
         var visRoot = container.querySelector('.vis-timeline');
         var existing = container.querySelector('.timevis-cols-header-wrap');
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
         if (visRoot && visRoot.parentNode) {
           var headerEl = document.createElement('div');
           headerEl.className = 'timevis-cols-header-wrap';
-          headerEl.innerHTML = buildRow({}, true);
+          headerEl.innerHTML = buildHeaderHTML();
           visRoot.parentNode.insertBefore(headerEl, visRoot);
         }
       },

@@ -35,18 +35,15 @@
 
 /* Multi-column group label support (setColumns / columns argument) */
 .timevis.html-widget .timevis-cols {
-  display: flex;
+  display: flex !important;
   align-items: center;
   font-size: 12px;
   line-height: 1.4;
   white-space: nowrap;
-  width: 100%;
-  height: 100%;
   box-sizing: border-box;
 }
 .timevis.html-widget .timevis-cols .timevis-col {
   display: inline-block;
-  flex: 0 0 auto;
   padding: 0 6px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -65,14 +62,8 @@
   font-weight: bold;
   padding: 4px 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
-/* When columns are in use, neutralize default vis-timeline padding on group
-   labels so the inline column widths line up with the header row. */
-.timevis.html-widget .vis-labelset .vis-label,
-.timevis.html-widget .vis-labelset .vis-label .vis-inner {
-  padding: 0;
-  margin: 0;
-}
-.timevis.html-widget .vis-labelset .vis-label .vis-inner {
-  width: 100%;
+.timevis.html-widget .timevis-cols-header-wrap .timevis-cols {
+  display: flex !important;
 }
