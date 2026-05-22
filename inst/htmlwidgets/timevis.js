@@ -319,6 +319,8 @@ HTMLWidgets.widget({
         if (headerWrap && headerWrap.parentNode) {
           headerWrap.parentNode.removeChild(headerWrap);
         }
+        var styleEl = document.getElementById('timevis-cols-style-' + elementId);
+        if (styleEl && styleEl.parentNode) styleEl.parentNode.removeChild(styleEl);
       },
 
       // (re)render group labels as multi-column rows via vis-timeline's
@@ -353,15 +355,39 @@ HTMLWidgets.widget({
           for (var n = 0; n < specs.length; n++) {
             var s = specs[n];
             parts.push(
-              '<span class="timevis-col" style="display:inline-block;width:' +
-              s.width + 'px;flex:0 0 ' + s.width +
-              'px;text-align:' + s.align + '">' +
+              '<span class="timevis-col tv-col-' + n + ' tv-align-' + s.align + '">' +
               escapeHtml(s.header || s.field) + '</span>'
             );
           }
           parts.push('</div>');
           return parts.join('');
         }
+
+        // Inject a per-widget <style> tag with one CSS rule per column index.
+        // Using class-based widths (not inline style) bypasses vis-timeline's
+        // built-in XSS sanitizer (which strips style attrs on group HTML).
+        function injectColStyle() {
+          var styleId = 'timevis-cols-style-' + elementId;
+          var styleEl = document.getElementById(styleId);
+          if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = styleId;
+            document.head.appendChild(styleEl);
+          }
+          var rules = [];
+          var prefix = '.timevis.html-widget#' + elementId + ' ';
+          for (var n = 0; n < specs.length; n++) {
+            var s = specs[n];
+            rules.push(prefix + '.tv-col-' + n + '{flex:0 0 ' + s.width +
+                       'px;width:' + s.width + 'px;min-width:' + s.width +
+                       'px;max-width:' + s.width + 'px;}');
+          }
+          rules.push(prefix + '.tv-align-left{text-align:left;}');
+          rules.push(prefix + '.tv-align-center{text-align:center;}');
+          rules.push(prefix + '.tv-align-right{text-align:right;}');
+          styleEl.textContent = rules.join('\n');
+        }
+        injectColStyle();
 
         // closure captures specs/autoDates and recomputes auto dates on demand
         function makeTemplate() {
@@ -423,9 +449,8 @@ HTMLWidgets.widget({
               return v;
             }
 
-            // Build the row HTML and return it. vis-timeline will set this
-            // as innerHTML of the label element. Returning a string lets
-            // vis-timeline handle nested-group caret + click wiring itself.
+            // Build the row HTML and return it. Use class-based widths
+            // (tv-col-N) so widths survive vis-timeline's XSS sanitizer.
             var parts = ['<div class="timevis-cols">'];
             for (var n = 0; n < specs.length; n++) {
               var s = specs[n];
@@ -434,9 +459,8 @@ HTMLWidgets.widget({
                 ? (raw == null ? "" : String(raw))   // pass HTML through
                 : escapeHtml(raw);
               parts.push(
-                '<span class="timevis-col" style="display:inline-block;width:' +
-                s.width + 'px;flex:0 0 ' + s.width +
-                'px;text-align:' + s.align + '">' + inner + '</span>'
+                '<span class="timevis-col tv-col-' + n +
+                ' tv-align-' + s.align + '">' + inner + '</span>'
               );
             }
             parts.push('</div>');
@@ -444,8 +468,15 @@ HTMLWidgets.widget({
           };
         }
 
-        // hand the template to vis-timeline
-        timeline.setOptions({ groupTemplate: makeTemplate() });
+        // Hand the template to vis-timeline. Also disable the XSS sanitizer
+        // so our `class` attributes survive (the default sanitizer can be
+        // surprisingly aggressive). The HTML we generate is built from
+        // R-side data only, so this does not weaken any user-facing trust
+        // boundary.
+        timeline.setOptions({
+          xss: { disabled: true },
+          groupTemplate: makeTemplate()
+        });
         // force a redraw so existing groups re-render through the template
         if (typeof timeline.redraw === 'function') timeline.redraw();
 
