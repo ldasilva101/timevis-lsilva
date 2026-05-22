@@ -21,6 +21,7 @@ HTMLWidgets.widget({
     var allItems;
     var colSpec = null;             // current { specs:[...], autoDates: bool } or null
     var lastGroupsArray = null;     // raw groups array last passed to timeline.setGroups
+    var applyingColumns = false;    // re-entry guard for setGroups <-> applyColumns
 
     return {
 
@@ -155,18 +156,20 @@ HTMLWidgets.widget({
         }
         timeline.setOptions(opts.options);
 
-        // set the data items and groups
+        // set the items first; the groupTemplate may want to read them
         timeline.itemsData.clear();
         timeline.itemsData.add(opts.items);
         lastGroupsArray = opts.groups || null;
-        timeline.setGroups(opts.groups);
 
-        // apply column spec (if any) from initial widget data
+        // If columns are configured, install groupTemplate BEFORE setGroups
+        // so the very first label render uses the multi-column template.
         if (opts.columns) {
           colSpec = opts.columns;
         }
         if (colSpec) {
           that.applyColumns();
+        } else {
+          timeline.setGroups(opts.groups);
         }
 
         // fit the items on the timeline
@@ -297,8 +300,11 @@ HTMLWidgets.widget({
       },
       setGroups : function(params) {
         lastGroupsArray = params.data || null;
-        timeline.setGroups(params.data);
-        if (colSpec) this.applyColumns();
+        if (colSpec && !applyingColumns) {
+          this.applyColumns();    // applyColumns will call timeline.setGroups
+        } else {
+          timeline.setGroups(params.data);
+        }
       },
       setColumns : function(params) {
         // params.columns may be null/undefined to clear
@@ -469,16 +475,19 @@ HTMLWidgets.widget({
         }
 
         // Hand the template to vis-timeline. Also disable the XSS sanitizer
-        // so our `class` attributes survive (the default sanitizer can be
-        // surprisingly aggressive). The HTML we generate is built from
-        // R-side data only, so this does not weaken any user-facing trust
-        // boundary.
+        // so our class attributes + multi-element label HTML survive.
         timeline.setOptions({
           xss: { disabled: true },
           groupTemplate: makeTemplate()
         });
-        // force a redraw so existing groups re-render through the template
-        if (typeof timeline.redraw === 'function') timeline.redraw();
+        // Force vis-timeline to re-render ALL group labels with the new
+        // template by re-applying the groups dataset. Guarded against the
+        // setGroups handler calling us back recursively.
+        if (lastGroupsArray) {
+          applyingColumns = true;
+          try { timeline.setGroups(lastGroupsArray); }
+          finally { applyingColumns = false; }
+        }
 
         // inject / replace sticky header row above the timeline.
         // Sibling of .vis-timeline so we never displace .vis-labelset.
