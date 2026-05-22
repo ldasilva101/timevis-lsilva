@@ -39,8 +39,8 @@ dataframeToD3 <- function(df) {
 magrittr::`%>%`
 
 # Validate and normalize a `columns` spec list. Returns NULL if input is NULL.
-# Output: list with $specs (list of fully-defaulted col specs) and $autoDates.
-tv_normalize_columns <- function(columns, autoDates = FALSE) {
+# Output: list with $specs, $autoDates, and $rowMinHeight.
+tv_normalize_columns <- function(columns, autoDates = FALSE, rowMinHeight = 36) {
   if (is.null(columns)) return(NULL)
   if (!is.list(columns) || length(columns) == 0) {
     stop("timevis: 'columns' must be a non-empty list of column specs",
@@ -73,7 +73,8 @@ tv_normalize_columns <- function(columns, autoDates = FALSE) {
       align  = spec[["align"]]  %||% (if (i == 1) "left" else "center")
     )
   })
-  list(specs = specs, autoDates = isTRUE(autoDates))
+  list(specs = specs, autoDates = isTRUE(autoDates),
+       rowMinHeight = if (is.numeric(rowMinHeight) && rowMinHeight > 0) rowMinHeight else NULL)
 }
 
 # null-coalescing helper

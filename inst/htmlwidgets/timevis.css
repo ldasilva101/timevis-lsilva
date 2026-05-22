@@ -54,9 +54,6 @@
    does NOT push .vis-labelset down. This preserves the alignment between
    group labels and item lanes, and keeps collapse-caret hit areas correct. */
 .timevis.html-widget .timevis-cols-header-wrap {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   background: #f3f3f3;
   border-bottom: 1px solid #ccc;
   font-weight: bold;

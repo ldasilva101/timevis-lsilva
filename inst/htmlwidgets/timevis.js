@@ -370,8 +370,8 @@ HTMLWidgets.widget({
         }
 
         // Inject a per-widget <style> tag with one CSS rule per column index.
-        // Using class-based widths (not inline style) bypasses vis-timeline's
-        // built-in XSS sanitizer (which strips style attrs on group HTML).
+        // Class-based widths allow the same rules to style both the header row
+        // (plain HTML) and group label elements (DOM-built by groupTemplate).
         function injectColStyle() {
           var styleId = 'timevis-cols-style-' + elementId;
           var styleEl = document.getElementById(styleId);
@@ -382,15 +382,33 @@ HTMLWidgets.widget({
           }
           var rules = [];
           var prefix = '.timevis.html-widget#' + elementId + ' ';
+          var totalWidth = 0;
           for (var n = 0; n < specs.length; n++) {
             var s = specs[n];
+            totalWidth += s.width;
             rules.push(prefix + '.tv-col-' + n + '{flex:0 0 ' + s.width +
                        'px;width:' + s.width + 'px;min-width:' + s.width +
                        'px;max-width:' + s.width + 'px;}');
           }
+          // Prevent the left panel from shrinking below the sum of column widths
+          // when the viewport shows a region with no visible items.
+          rules.push(prefix + '.vis-panel.vis-left{min-width:' + totalWidth + 'px;}');
           rules.push(prefix + '.tv-align-left{text-align:left;}');
           rules.push(prefix + '.tv-align-center{text-align:center;}');
           rules.push(prefix + '.tv-align-right{text-align:right;}');
+          // Strip vis-timeline's level-based .vis-inner indent and .vis-label
+          // padding so all rows start at the same x-position regardless of
+          // nesting level (vis-group-level-unknown-but-gte1 fallback = 150px).
+          rules.push(prefix + '.vis-label{padding-left:0!important;}');
+          var innerMinH = colSpec.rowMinHeight;
+          rules.push(prefix + '.vis-label .vis-inner{padding:0!important;' +
+                     (innerMinH ? 'min-height:' + innerMinH + 'px;' : '') + '}');
+          // Pull the collapse caret out of flow so it overlays the first column
+          // rather than pushing .vis-inner to the right.
+          rules.push(prefix + '.vis-label.vis-nesting-group::before{position:absolute!important;left:4px;top:50%;transform:translateY(-50%);}');
+          // Uniform left clearance on all first columns (clears the caret glyph).
+          rules.push(prefix + '.vis-label .tv-col-0{padding-left:22px!important;}');
+          rules.push(prefix + '.timevis-cols-header-wrap .tv-col-0{padding-left:22px!important;}');
           styleEl.textContent = rules.join('\n');
         }
         injectColStyle();
@@ -455,50 +473,85 @@ HTMLWidgets.widget({
               return v;
             }
 
-            // Build the row HTML and return it. Use class-based widths
-            // (tv-col-N) so widths survive vis-timeline's XSS sanitizer.
-            var parts = ['<div class="timevis-cols">'];
+            // Build the row as a DOM element so vis-timeline's group label
+            // renderer uses the `instanceof Element` branch (direct appendChild),
+            // bypassing the `Zd.xss()` call that fires unconditionally on the
+            // string-return path and strips all HTML tags regardless of the
+            // `xss: {disabled: true}` timeline option.
+            var rowEl = document.createElement('div');
+            rowEl.className = 'timevis-cols';
             for (var n = 0; n < specs.length; n++) {
               var s = specs[n];
               var raw = valueFor(group, s);
-              var inner = (n === 0 && s.field === "content")
-                ? (raw == null ? "" : String(raw))   // pass HTML through
-                : escapeHtml(raw);
-              parts.push(
-                '<span class="timevis-col tv-col-' + n +
-                ' tv-align-' + s.align + '">' + inner + '</span>'
-              );
+              var spanEl = document.createElement('span');
+              spanEl.className = 'timevis-col tv-col-' + n + ' tv-align-' + s.align;
+              if (n === 0 && s.field === 'content') {
+                spanEl.innerHTML = raw == null ? '' : String(raw);
+              } else {
+                spanEl.textContent = raw == null ? '' : String(raw);
+              }
+              rowEl.appendChild(spanEl);
             }
-            parts.push('</div>');
-            return parts.join('');
+            return rowEl;
           };
         }
 
-        // Hand the template to vis-timeline. Also disable the XSS sanitizer
-        // so our class attributes + multi-element label HTML survive.
         timeline.setOptions({
-          xss: { disabled: true },
           groupTemplate: makeTemplate()
         });
         // Force vis-timeline to re-render ALL group labels with the new
         // template by re-applying the groups dataset. Guarded against the
         // setGroups handler calling us back recursively.
+        // Apply a minimum row height via group data so empty rows (no visible
+        // items) don't collapse. Using group.height is the only vis-timeline-
+        // native approach that keeps the JS model and DOM in sync, preserving
+        // scroll-to-zoom and row/bar alignment.
         if (lastGroupsArray) {
+          var ROW_MIN_H = 36;
+          var groupsForTl = lastGroupsArray.map(function(g) {
+            return (g.height == null || g.height < ROW_MIN_H)
+              ? Object.assign({}, g, { height: ROW_MIN_H })
+              : g;
+          });
           applyingColumns = true;
-          try { timeline.setGroups(lastGroupsArray); }
+          try { timeline.setGroups(groupsForTl); }
           finally { applyingColumns = false; }
         }
 
-        // inject / replace sticky header row above the timeline.
-        // Sibling of .vis-timeline so we never displace .vis-labelset.
+        // Inject header as an absolutely-positioned overlay inside .vis-timeline,
+        // flush above .vis-panel.vis-left. This fills the empty top-left slot
+        // (left of the time axis) without displacing .vis-labelset.
         var visRoot = container.querySelector('.vis-timeline');
         var existing = container.querySelector('.timevis-cols-header-wrap');
         if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
-        if (visRoot && visRoot.parentNode) {
+        // Remove any previous layout listener to avoid duplicates on re-apply.
+        if (container._tvHeaderPositioner) {
+          timeline.off('changed', container._tvHeaderPositioner);
+          container._tvHeaderPositioner = null;
+        }
+        if (visRoot) {
           var headerEl = document.createElement('div');
           headerEl.className = 'timevis-cols-header-wrap';
           headerEl.innerHTML = buildHeaderHTML();
-          visRoot.parentNode.insertBefore(headerEl, visRoot);
+          headerEl.style.position = 'absolute';
+          headerEl.style.left = '0';
+          headerEl.style.zIndex = '3';
+          visRoot.appendChild(headerEl);
+          // Re-position after every vis-timeline layout pass so the header
+          // stays flush above .vis-panel.vis-left on initial render and resize.
+          // leftPanel.style.top is set synchronously inside redraw(), which runs
+          // before 'changed' fires, so the value is always current here.
+          function positionHeader() {
+            var lp = visRoot.querySelector('.vis-panel.vis-left');
+            if (lp) {
+              headerEl.style.width = lp.offsetWidth + 'px';
+              var panelTop = parseInt(lp.style.top, 10) || 0;
+              headerEl.style.top = (panelTop - headerEl.offsetHeight) + 'px';
+            }
+          }
+          container._tvHeaderPositioner = positionHeader;
+          timeline.on('changed', positionHeader);
+          positionHeader();
         }
       },
       setOptions : function(params) {

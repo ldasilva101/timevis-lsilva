@@ -501,9 +501,9 @@ setGroups <- function(id, data) {
 #'   ), autoDates = TRUE)
 #' }
 #' @export
-setColumns <- function(id, columns, autoDates = FALSE) {
+setColumns <- function(id, columns, autoDates = FALSE, rowMinHeight = 36) {
   method <- "setColumns"
-  columns <- tv_normalize_columns(columns, autoDates)
+  columns <- tv_normalize_columns(columns, autoDates, rowMinHeight)
   callJS()
 }
 

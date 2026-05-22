@@ -22,6 +22,9 @@ groups <- data.frame(
               "t1","t2","t3","t4","t5","t6","t7","t8"),
   content = c("Engineering","HR","Finance",
               "Spec","Build","QA","Ship","Hire","Onboard","Audit","Filing"),
+  status  = c("","","",
+              "Complete","Complete","In Progress","Not Started",
+              "Complete","In Progress","Complete","In Progress"),
   nestedGroups = I(list(
     list("t1","t2","t3","t4"),  # eng
     list("t5","t6"),             # hr
@@ -46,9 +49,10 @@ server <- function(input, output, session) {
       columns = list(
         list(field = "content", header = "Task",  width = 180),
         list(field = "start",   header = "Start", width = 110),
-        list(field = "end",     header = "End",   width = 110)
+        list(field = "end",     header = "End",   width = 110),
+        list(field = "status",  header = "Status", width = 110)
       ),
-      autoDates = TRUE,
+      autoDates = TRUE, rowMinHeight = 36,
       options = list(stack = TRUE, orientation = "top",
                      margin = list(item = 6, axis = 20))
     )
