@@ -21,6 +21,8 @@ HTMLWidgets.widget({
     var allItems;
     var colSpec = null;             // current { specs:[...], autoDates: bool } or null
     var originalGroupContent = {};  // groupId -> original content (to allow rebuild)
+    var lastGroupsArray = null;     // raw groups array last passed to timeline.setGroups
+    var applyingColumns = false;    // re-entry guard to prevent setGroups -> applyColumns loop
 
     return {
 
@@ -159,6 +161,7 @@ HTMLWidgets.widget({
         timeline.itemsData.clear();
         timeline.itemsData.add(opts.items);
         originalGroupContent = {};
+        lastGroupsArray = opts.groups || null;
         timeline.setGroups(opts.groups);
 
         // apply column spec (if any) from initial widget data
@@ -296,9 +299,12 @@ HTMLWidgets.widget({
         if (colSpec) this.applyColumns();
       },
       setGroups : function(params) {
-        originalGroupContent = {};
+        if (!applyingColumns) {
+          originalGroupContent = {};
+          lastGroupsArray = params.data || null;
+        }
         timeline.setGroups(params.data);
-        if (colSpec) this.applyColumns();
+        if (colSpec && !applyingColumns) this.applyColumns();
       },
       setColumns : function(params) {
         // params.columns may be null/undefined to clear
@@ -313,29 +319,26 @@ HTMLWidgets.widget({
 
       // remove header row + restore original group contents
       clearColumns : function() {
-        // restore original content for any group we rewrote
-        if (timeline.groupsData) {
-          var ids = timeline.groupsData.getIds();
-          var updates = [];
-          for (var i = 0; i < ids.length; i++) {
-            var gid = ids[i];
-            if (Object.prototype.hasOwnProperty.call(originalGroupContent, gid)) {
-              updates.push({ id : gid, content : originalGroupContent[gid] });
-            }
-          }
-          if (updates.length) timeline.groupsData.update(updates);
+        // re-set the original groups array if we have it cached
+        if (lastGroupsArray) {
+          applyingColumns = true;
+          try { timeline.setGroups(lastGroupsArray); }
+          finally { applyingColumns = false; }
         }
         originalGroupContent = {};
-        var header = container.querySelector('.timevis-cols-header');
-        if (header && header.parentNode) header.parentNode.removeChild(header);
+        var headerWrap = container.querySelector('.timevis-cols-header-wrap');
+        if (headerWrap && headerWrap.parentNode) {
+          headerWrap.parentNode.removeChild(headerWrap);
+        }
       },
 
       // (re)render group content as multi-column rows and inject sticky header
       applyColumns : function() {
-        if (!colSpec || !timeline.groupsData) return;
+        if (!colSpec) return;
         var specs = colSpec.specs;
         var autoDates = !!colSpec.autoDates;
-        var groups = timeline.groupsData.get();
+        // Work from the cached raw groups array (preserves nestedGroups, etc.)
+        var groups = lastGroupsArray;
         if (!groups || groups.length === 0) return;
 
         // build a quick map of items per group for autoDates
@@ -442,29 +445,38 @@ HTMLWidgets.widget({
           return parts.join('');
         }
 
-        // rebuild group content
-        var updates = [];
+        // build a new groups array with rewritten `content`, preserving all
+        // other group fields (nestedGroups, showNested, className, ...)
+        var rebuilt = [];
         for (var p = 0; p < groups.length; p++) {
           var grp = groups[p];
           if (!Object.prototype.hasOwnProperty.call(originalGroupContent, grp.id)) {
             originalGroupContent[grp.id] = grp.content;
           }
-          // make a synthetic group object whose `content` field is the original,
-          // so first-column field="content" produces the original label
-          var synth = {};
+          var copy = {};
           for (var key in grp) {
-            if (Object.prototype.hasOwnProperty.call(grp, key)) synth[key] = grp[key];
+            if (Object.prototype.hasOwnProperty.call(grp, key)) copy[key] = grp[key];
+          }
+          // synth group for valueFor: ensures field="content" uses the ORIGINAL
+          var synth = {};
+          for (var k2 in copy) {
+            if (Object.prototype.hasOwnProperty.call(copy, k2)) synth[k2] = copy[k2];
           }
           synth.content = originalGroupContent[grp.id];
-          updates.push({ id : grp.id, content : buildRow(synth, false) });
+          copy.content = buildRow(synth, false);
+          rebuilt.push(copy);
         }
-        timeline.groupsData.update(updates);
+
+        // re-apply via setGroups with a re-entry guard so we don't loop
+        applyingColumns = true;
+        try { timeline.setGroups(rebuilt); }
+        finally { applyingColumns = false; }
 
         // inject / replace sticky header row in the left panel
         var leftPanel = container.querySelector('.vis-panel.vis-left');
         if (leftPanel) {
-          var existing = leftPanel.querySelector('.timevis-cols-header');
-          if (existing) existing.parentNode.removeChild(existing);
+          var existing = leftPanel.querySelector('.timevis-cols-header-wrap');
+          if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
           var headerEl = document.createElement('div');
           headerEl.className = 'timevis-cols-header-wrap';
           headerEl.innerHTML = buildRow({}, true);
