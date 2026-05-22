@@ -381,7 +381,7 @@
 timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
                     options = list(), width = NULL, height = NULL, elementId = NULL,
                     loadDependencies = TRUE, timezone = NULL,
-                    columns = NULL, autoDates = FALSE) {
+                    columns = NULL, autoDates = FALSE, rowMinHeight = 36) {
 
   # Validate the input data
   if (missing(data)) {
@@ -461,7 +461,7 @@ timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
     fit <- FALSE
   }
 
-  columns <- tv_normalize_columns(columns, autoDates)
+  columns <- tv_normalize_columns(columns, autoDates, rowMinHeight)
 
   # forward options using x
   x = list(
