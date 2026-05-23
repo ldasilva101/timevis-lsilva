@@ -33,6 +33,26 @@
   box-shadow: 0 0 2px #ddd;
 }
 
+/* Tie connector lines between items */
+.timevis.html-widget .timevis-ties-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 6;
+}
+.timevis.html-widget .timevis-tie {
+  fill: none;
+  stroke: #888;
+  stroke-width: 1.5px;
+}
+.timevis.html-widget .timevis-tie-arrow {
+  fill: #888;
+}
+
 /* Multi-column group label support (setColumns / columns argument) */
 .timevis.html-widget .timevis-cols {
   display: flex !important;

@@ -22,12 +22,56 @@ HTMLWidgets.widget({
     var colSpec = null;             // current { specs:[...], autoDates: bool } or null
     var lastGroupsArray = null;     // raw groups array last passed to timeline.setGroups
     var applyingColumns = false;    // re-entry guard for setGroups <-> applyColumns
+    var tiesData = null;            // array of {from, to} tie objects or null
+    var tiesSvg = null;             // SVG overlay element for drawing tie lines
+    var tiesReady = false;          // false during renderValue setup; suppresses changed-driven redraws
+    var drawTiesPending = false;    // rAF debounce flag for changed-driven redraws
+
+    // Return the DOM element used to represent an item on the timeline.
+    // Uses vis-timeline's internal itemSet for direct DOM access.
+    function getItemDomEl(itemId) {
+      if (!timeline.itemSet || !timeline.itemSet.items) return null;
+      var item = timeline.itemSet.items[String(itemId)];
+      if (!item || !item.dom) return null;
+      return item.dom.box || item.dom.point || item.dom.line || null;
+    }
+
+    // vis-timeline's fit() throws "Cannot redraw item: no parent attached" when
+    // collapsed nested groups exist (those items have item.parent === null).
+    // Fall back to computing the window from itemsData directly in that case.
+    function safeFit() {
+      try {
+        timeline.fit({ animation: false });
+        return;
+      } catch(e) {}
+      var arr = timeline.itemsData.get();
+      if (!arr.length) return;
+      var minS = null, maxE = null;
+      for (var i = 0; i < arr.length; i++) {
+        var s = arr[i].start ? new Date(arr[i].start) : null;
+        var e = arr[i].end   ? new Date(arr[i].end)   : s;
+        if (s && isNaN(s.getTime())) s = null;
+        if (e && isNaN(e.getTime())) e = null;
+        if (s && (!minS || s < minS)) minS = s;
+        if (e && (!maxE || e > maxE)) maxE = e;
+      }
+      if (minS && maxE) timeline.setWindow(minS, maxE, { animation: false });
+    }
 
     return {
 
       renderValue: function(opts) {
         // alias this
         var that = this;
+
+        // Suppress changed-driven tie redraws until setup (including fit) has
+        // fully settled. tiesReady is re-enabled in the setTimeout below.
+        tiesReady = false;
+
+        // Update ties data before any 'changed' events fire during render
+        if ('ties' in opts) {
+          tiesData = opts.ties || null;
+        }
 
         if (!initialized) {
           initialized = true;
@@ -112,6 +156,42 @@ HTMLWidgets.widget({
             setTimeout(sendShinyVisible, 0);
           }
 
+          // Create SVG overlay for tie connector lines
+          (function() {
+            var visCenterEl = container.querySelector('.vis-panel.vis-center');
+            if (!visCenterEl) return;
+            tiesSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            tiesSvg.setAttribute('class', 'timevis-ties-svg');
+            // Arrowhead marker definition
+            var markerId = 'timevis-arrow-' + elementId;
+            var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            var marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', markerId);
+            marker.setAttribute('markerWidth', '7');
+            marker.setAttribute('markerHeight', '7');
+            marker.setAttribute('refX', '6');
+            marker.setAttribute('refY', '3');
+            marker.setAttribute('orient', 'auto');
+            var arrowPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            arrowPath.setAttribute('d', 'M0,0 L0,6 L6,3 z');
+            arrowPath.setAttribute('class', 'timevis-tie-arrow');
+            marker.appendChild(arrowPath);
+            defs.appendChild(marker);
+            tiesSvg.appendChild(defs);
+            visCenterEl.appendChild(tiesSvg);
+          })();
+          // Redraw tie lines after every timeline re-render (pan, zoom, data change)
+          timeline.on('changed', function() {
+            if (!tiesReady) return;
+            if (!drawTiesPending) {
+              drawTiesPending = true;
+              requestAnimationFrame(function() {
+                drawTiesPending = false;
+                that.drawTies();
+              });
+            }
+          });
+
           // if a crosstalk dataframe is used, initialize crosstalk
           if (typeof(crosstalk) !== "undefined" && opts.crosstalk) {
             ctSel = new crosstalk.SelectionHandle(opts.crosstalk.group);
@@ -172,10 +252,7 @@ HTMLWidgets.widget({
           timeline.setGroups(opts.groups);
         }
 
-        // fit the items on the timeline
-        if (opts.fit) {
-          timeline.fit({ animation : false });
-        }
+        // Fit deferred to the one-shot changed handler below; skip here.
 
         // Show or hide the zoom button
         var zoomMenu = container.getElementsByClassName("zoom-menu")[0];
@@ -208,6 +285,25 @@ HTMLWidgets.widget({
         if (ctSel !== null) {
           that.setSelection({ itemId : ctSel.value });
         }
+
+        // Wait for vis-timeline's first 'changed' event (fired after its
+        // internal RAF-based render) before fitting and drawing ties.  This
+        // is event-driven so it fires at exactly the right moment regardless
+        // of browser task/animation-frame scheduling.
+        var fitNeeded = !!opts.fit;
+        var self = that;
+        var onFirstChanged = function() {
+          timeline.off('changed', onFirstChanged);
+          if (fitNeeded) safeFit();
+          // vis-timeline's 'changed' fires before all items are fully rendered
+          // (some item boxes keep className="" with nested groups). A manual
+          // redraw() completes the render synchronously. Keep tiesReady=false
+          // so the 'changed' emitted by redraw() doesn't recurse.
+          timeline.redraw();
+          tiesReady = true;
+          self.drawTies();
+        };
+        timeline.on('changed', onFirstChanged);
       },
 
       resize : function(width, height) {
@@ -554,6 +650,79 @@ HTMLWidgets.widget({
           positionHeader();
         }
       },
+      setTies : function(params) {
+        tiesData = params.ties || null;
+        this.drawTies();
+      },
+      drawTies : function() {
+        if (!tiesSvg) return;
+        // Remove all children except <defs>
+        var children = tiesSvg.childNodes;
+        for (var i = children.length - 1; i >= 0; i--) {
+          if (children[i].nodeName !== 'defs') {
+            tiesSvg.removeChild(children[i]);
+          }
+        }
+        if (!tiesData || !tiesData.length) return;
+
+        var visCenterEl = container.querySelector('.vis-panel.vis-center');
+        if (!visCenterEl) return;
+        var centerRect = visCenterEl.getBoundingClientRect();
+        var panelW = centerRect.width;
+        var panelH = centerRect.height;
+        var markerId = 'timevis-arrow-' + elementId;
+
+        for (var i = 0; i < tiesData.length; i++) {
+          var tie = tiesData[i];
+          var fromEl = getItemDomEl(tie.from);
+          var toEl   = getItemDomEl(tie.to);
+          if (!fromEl || !toEl) continue;
+
+          var fromRect = fromEl.getBoundingClientRect();
+          var toRect   = toEl.getBoundingClientRect();
+
+          // Skip items with no rendered size: hidden or in a collapsed group
+          if (fromRect.width === 0 || fromRect.height === 0 ||
+              toRect.width  === 0 || toRect.height  === 0) continue;
+
+          // Start: right edge of "from" item; End: left edge of "to" item
+          var x1 = fromRect.right  - centerRect.left;
+          var y1 = (fromRect.top + fromRect.bottom) / 2 - centerRect.top;
+          var x2 = toRect.left     - centerRect.left;
+          var y2 = (toRect.top  + toRect.bottom)  / 2 - centerRect.top;
+
+          // Skip if either endpoint is outside the panel vertically
+          // (items in collapsed groups land at y ≈ 0 or below the panel)
+          var VTOL = 4;
+          if (y1 < -VTOL || y1 > panelH + VTOL ||
+              y2 < -VTOL || y2 > panelH + VTOL) continue;
+
+          // Skip if both items are off-screen on the same horizontal side
+          if ((x1 <= 0 && x2 <= 0) || (x1 >= panelW && x2 >= panelW)) continue;
+
+          // Clamp x to panel bounds so partial lines emerge from the edge cleanly
+          x1 = Math.max(0, Math.min(panelW, x1));
+          x2 = Math.max(0, Math.min(panelW, x2));
+
+          // Bend x: midpoint, with a minimum offset so lines don't collapse
+          var OFFSET = 14;
+          var bendX = (x2 >= x1 + 2 * OFFSET)
+            ? (x1 + x2) / 2
+            : x1 + OFFSET;
+          bendX = Math.min(panelW, bendX);
+
+          var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d',
+            'M ' + x1 + ' ' + y1 +
+            ' H ' + bendX +
+            ' V ' + y2 +
+            ' H ' + x2
+          );
+          path.setAttribute('class', 'timevis-tie');
+          path.setAttribute('marker-end', 'url(#' + markerId + ')');
+          tiesSvg.appendChild(path);
+        }
+      },
       setOptions : function(params) {
         timeline.setOptions(params.options);
       },
@@ -584,8 +753,8 @@ if (HTMLWidgets.shinyMode) {
   var fxns =
     ['addItem', 'addItems', 'removeItem', 'addCustomTime', 'removeCustomTime',
      'fitWindow', 'centerTime', 'centerItem', 'setItems', 'setGroups',
-     'setColumns', 'setOptions', 'setSelection', 'setWindow', 'setCustomTime',
-     'setCurrentTime', 'zoomIn', 'zoomOut'];
+     'setColumns', 'setTies', 'setOptions', 'setSelection', 'setWindow',
+     'setCustomTime', 'setCurrentTime', 'zoomIn', 'zoomOut'];
 
   var addShinyHandler = function(fxn) {
     return function() {

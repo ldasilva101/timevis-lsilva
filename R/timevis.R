@@ -73,6 +73,11 @@
 #' fields used in \code{columns} are derived from items (leaf groups: min
 #' start / max end across items in that group; parent groups: recursive min/max
 #' over their \code{nestedGroups}).
+#' @param ties Optional data.frame with \code{from} and \code{to} columns
+#' specifying directed connector lines between items. Each row draws a
+#' three-segment (horizontal-vertical-horizontal) line from the right edge of
+#' the \code{from} item to the left edge of the \code{to} item. An item may
+#' appear in multiple rows. See also \code{\link[timevis]{setTies}}.
 #' @return A timeline visualization \code{htmlwidgets} object
 #' @section Data format:
 #' The \code{data} parameter supplies the input dataframe that describes the
@@ -381,7 +386,8 @@
 timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
                     options = list(), width = NULL, height = NULL, elementId = NULL,
                     loadDependencies = TRUE, timezone = NULL,
-                    columns = NULL, autoDates = FALSE, rowMinHeight = 36) {
+                    columns = NULL, autoDates = FALSE, rowMinHeight = 36,
+                    ties = NULL) {
 
   # Validate the input data
   if (missing(data)) {
@@ -463,6 +469,20 @@ timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
 
   columns <- tv_normalize_columns(columns, autoDates, rowMinHeight)
 
+  if (!is.null(ties)) {
+    if (!is.data.frame(ties)) {
+      stop("timevis: 'ties' must be a data.frame", call. = FALSE)
+    }
+    if (nrow(ties) > 0 &&
+        (!("from" %in% names(ties)) || !("to" %in% names(ties)))) {
+      stop("timevis: 'ties' must contain 'from' and 'to' columns", call. = FALSE)
+    }
+    ties <- dataframeToD3(data.frame(
+      from = as.character(ties$from),
+      to   = as.character(ties$to)
+    ))
+  }
+
   # forward options using x
   x = list(
     items = items,
@@ -474,7 +494,8 @@ timevis <- function(data, groups, showZoom = TRUE, zoomFactor = 0.5, fit = TRUE,
     height = height,
     timezone = timezone,
     crosstalk = crosstalk_opts,
-    columns = columns
+    columns = columns,
+    ties = ties
   )
 
   # Allow a list of API functions to be called on the timevis after

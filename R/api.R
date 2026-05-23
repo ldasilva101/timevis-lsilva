@@ -507,6 +507,36 @@ setColumns <- function(id, columns, autoDates = FALSE, rowMinHeight = 36) {
   callJS()
 }
 
+#' Set or update the tie connector lines between items on a timeline
+#'
+#' Draws directed three-segment (horizontal-vertical-horizontal) connector
+#' lines between pairs of items, useful for showing dependencies or sequences.
+#'
+#' @param id Timeline id or a \code{timevis} object (the output from \code{timevis()})
+#' @param ties A data.frame with \code{from} and \code{to} columns of item IDs,
+#'   or \code{NULL} to remove all ties.
+#' @examples
+#' \dontrun{
+#' timevis(
+#'   data.frame(id = 1:3,
+#'              content = c("Plan", "Build", "Ship"),
+#'              start = c("2016-01-10", "2016-01-14", "2016-01-20"),
+#'              end   = c("2016-01-13", "2016-01-19", "2016-01-22"))
+#' ) %>%
+#'   setTies(data.frame(from = c(1, 2), to = c(2, 3)))
+#' }
+#' @export
+setTies <- function(id, ties) {
+  method <- "setTies"
+  if (!is.null(ties)) {
+    ties <- dataframeToD3(data.frame(
+      from = as.character(ties$from),
+      to   = as.character(ties$to)
+    ))
+  }
+  callJS()
+}
+
 #' Update the configuration options of a timeline
 #' @param id Timeline id or a \code{timevis} object (the output from \code{timevis()})
 #' @param options A named list containing updated configuration options to use.
