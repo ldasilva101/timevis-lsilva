@@ -73,8 +73,10 @@ tv_normalize_columns <- function(columns, autoDates = FALSE, rowMinHeight = 36) 
       align  = spec[["align"]]  %||% (if (i == 1) "left" else "center")
     )
   })
-  list(specs = specs, autoDates = isTRUE(autoDates),
-       rowMinHeight = if (is.numeric(rowMinHeight) && rowMinHeight > 0) rowMinHeight else NULL)
+  if (!is.numeric(rowMinHeight) || length(rowMinHeight) != 1 || rowMinHeight <= 0) {
+    stop("timevis: 'rowMinHeight' must be a positive number", call. = FALSE)
+  }
+  list(specs = specs, autoDates = isTRUE(autoDates), rowMinHeight = rowMinHeight)
 }
 
 # null-coalescing helper

@@ -73,6 +73,8 @@
 #' fields used in \code{columns} are derived from items (leaf groups: min
 #' start / max end across items in that group; parent groups: recursive min/max
 #' over their \code{nestedGroups}).
+#' @param rowMinHeight Minimum row height in pixels when \code{columns} is used.
+#' Prevents empty rows from collapsing. Default \code{36}.
 #' @param ties Optional data.frame with \code{from} and \code{to} columns
 #' specifying directed connector lines between items. Each row draws a
 #' three-segment (horizontal-vertical-horizontal) line from the right edge of

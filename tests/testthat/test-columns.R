@@ -1,34 +1,50 @@
 context("columns / setColumns")
 
 test_that("tv_normalize_columns returns NULL when input is NULL", {
-  expect_null(tv_normalize_columns(NULL))
-  expect_null(tv_normalize_columns(NULL, autoDates = TRUE))
+  expect_null(timevis:::tv_normalize_columns(NULL))
+  expect_null(timevis:::tv_normalize_columns(NULL, autoDates = TRUE))
 })
 
 test_that("tv_normalize_columns errors on bad input", {
-  expect_error(tv_normalize_columns(list()), "non-empty list")
-  expect_error(tv_normalize_columns("nope"), "non-empty list")
-  expect_error(tv_normalize_columns(list(list(field = "x")), autoDates = "yes"),
+  expect_error(timevis:::tv_normalize_columns(list()), "non-empty list")
+  expect_error(timevis:::tv_normalize_columns("nope"), "non-empty list")
+  expect_error(timevis:::tv_normalize_columns(list(list(field = "x")), autoDates = "yes"),
                "must be TRUE or FALSE")
   expect_error(
-    tv_normalize_columns(list(list(header = "no field"))),
+    timevis:::tv_normalize_columns(list(list(header = "no field"))),
     "must be a list with a 'field' string"
   )
   expect_error(
-    tv_normalize_columns(list(list(field = "x", width = -1))),
+    timevis:::tv_normalize_columns(list(list(field = "x", width = -1))),
     "must be a positive number"
   )
+  expect_error(
+    timevis:::tv_normalize_columns(list(list(field = "x")), rowMinHeight = -5),
+    "rowMinHeight.*positive"
+  )
+  expect_error(
+    timevis:::tv_normalize_columns(list(list(field = "x")), rowMinHeight = "big"),
+    "rowMinHeight.*positive"
+  )
+})
+
+test_that("tv_normalize_columns respects rowMinHeight", {
+  out <- timevis:::tv_normalize_columns(list(list(field = "content")), rowMinHeight = 50)
+  expect_equal(out$rowMinHeight, 50)
+
+  out_default <- timevis:::tv_normalize_columns(list(list(field = "content")))
+  expect_equal(out_default$rowMinHeight, 36)
 })
 
 test_that("tv_normalize_columns warns on tiny width", {
   expect_warning(
-    tv_normalize_columns(list(list(field = "x", width = 10))),
+    timevis:::tv_normalize_columns(list(list(field = "x", width = 10))),
     "may be unreadable"
   )
 })
 
 test_that("tv_normalize_columns fills defaults", {
-  out <- tv_normalize_columns(
+  out <- timevis:::tv_normalize_columns(
     list(
       list(field = "content"),
       list(field = "start", header = "Start", width = 100, format = "MM/DD")

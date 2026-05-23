@@ -478,6 +478,8 @@ setGroups <- function(id, data) {
 #'   full description of each field.
 #' @param autoDates If \code{TRUE}, virtual \code{"start"} / \code{"end"}
 #'   fields are derived from items. Default \code{FALSE}.
+#' @param rowMinHeight Minimum row height in pixels. Prevents empty rows from
+#'   collapsing. Default \code{36}.
 #' @examples
 #' \dontrun{
 #' items <- data.frame(
