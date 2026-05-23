@@ -81,6 +81,8 @@ Sponsors 🏆
   - [Slightly more advanced examples](#advanced-examples)
   - [Interactivity](#interactivity)
   - [Groups](#groups)
+  - [Multi-column group labels](#columns)
+  - [Dependency ties](#ties)
   - [Functions to manipulate a timeline](#manipulate-api)
   - [In a Shiny app](#shiny-apps)
       - [Retrieving data from the widget](#retrieve-data)
@@ -208,6 +210,50 @@ Groups can also contain nested groups. The next example is similar to the previo
 ![Nested groups timeline](inst/img/nestedgroups.png)
 
 Refer to the [visjs Timeline](https://visjs.github.io/vis-timeline/docs/timeline/) documentation to see all the options that are supported.
+
+<h2 id="columns">
+
+Multi-column group labels
+
+</h2>
+
+The `columns` argument lets you render the left label panel as a multi-column table. Each column is defined by a named list with a `field` (required), `header`, `width` (pixels), `format` (moment.js date format), and `align`. A sticky header row is rendered above the timeline axis without consuming a timeline lane.
+
+When `autoDates = TRUE`, virtual `"start"` and `"end"` fields are automatically derived from the items in each group (and recursively from nested groups), so you do not need to add date columns to the groups dataframe by hand.
+
+Use `rowMinHeight` to prevent empty rows from collapsing (default 36 px).
+
+``` r
+timevis(
+  data = items,
+  groups = groups,
+  columns = list(
+    list(field = "content", header = "Task",   width = 180),
+    list(field = "start",   header = "Start",  width = 110),
+    list(field = "end",     header = "End",     width = 110),
+    list(field = "status",  header = "Status",  width = 110)
+  ),
+  autoDates = TRUE,
+  rowMinHeight = 36
+)
+```
+
+You can update the columns after creation with `setColumns()`, or remove them with `clearColumns()`.
+
+<h2 id="ties">
+
+Dependency ties
+
+</h2>
+
+The `ties` argument draws directed dependency lines between items. Each row of the `ties` data frame connects the right edge of the `from` item to the left edge of the `to` item with a three-segment horizontal-vertical-horizontal path and an arrowhead. An item may appear in multiple ties.
+
+``` r
+ties <- data.frame(from = c(1, 2, 3), to = c(2, 3, 4))
+timevis(data = items, ties = ties)
+```
+
+Ties are automatically redrawn when the user pans or zooms, and are hidden when either endpoint belongs to a collapsed nested group. You can update ties after creation with `setTies()`.
 
 <h2 id="manipulate-api">
 

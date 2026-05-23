@@ -3,7 +3,6 @@
 \docType{package}
 \name{timevis-package}
 \alias{timevis-package}
-\alias{_PACKAGE}
 \title{timevis: Create Interactive Timeline Visualizations in R}
 \description{
 Create rich and fully interactive timeline visualizations. Timelines can be included in Shiny apps or R markdown documents. 'timevis' includes an extensive API to manipulate a timeline after creation, and supports getting data out of the visualization into R. Based on the 'vis.js' Timeline JavaScript library.
@@ -22,6 +21,7 @@ Useful links:
 
 Authors:
 \itemize{
+  \item Dean Attali \email{daattali@gmail.com} (\href{https://orcid.org/0000-0002-5645-3493}{ORCID}) (R interface)
   \item  Almende B.V. (vis.js Timeline library, https://visjs.github.io/vis-timeline/docs/timeline/) [copyright holder]
 }
 

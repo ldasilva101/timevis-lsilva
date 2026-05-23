@@ -8,6 +8,15 @@
   left label panel can now be rendered as a multi-column table aligned with
   (optionally nested) groups, with a sticky header row that does not consume a
   timeline lane. Dates can be auto-derived from items.
+- Add `rowMinHeight` argument to `timevis()` and `setColumns()` to set a
+  minimum row height (in pixels) when using multi-column group labels,
+  preventing empty rows from collapsing.
+- Add `ties` argument to `timevis()` and new `setTies()` function to draw
+  directed dependency connector lines between items. Each tie is rendered as a
+  three-segment horizontal-vertical-horizontal line with an arrowhead from the
+  right edge of the source item to the left edge of the target item. Items may
+  appear in multiple ties. Ties are automatically redrawn on pan, zoom, and
+  data changes, and are hidden when either endpoint is in a collapsed group.
 
 # timevis 2.1.0 (2022-10-22)
 

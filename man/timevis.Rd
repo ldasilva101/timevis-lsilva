@@ -15,7 +15,11 @@ timevis(
   height = NULL,
   elementId = NULL,
   loadDependencies = TRUE,
-  timezone = NULL
+  timezone = NULL,
+  columns = NULL,
+  autoDates = FALSE,
+  rowMinHeight = 36,
+  ties = NULL
 )
 }
 \arguments{
@@ -74,6 +78,30 @@ time of the browser rendering it. You can set timevis to display times in
 another time zone by providing a number between -15 to 15 to specify the
 number of hours offset from UTC. For example, use \code{0} to display in UTC,
 and use \code{-4} to display in a timezone that is 4 hours behind UTC.}
+
+\item{columns}{Optional list of column specifications to render the left
+label panel as a multi-column table aligned with the (optionally nested)
+groups. Each element is a named list with fields \code{field} (required;
+the name of a column in \code{groups}, or the virtual fields \code{"start"}
+/ \code{"end"} when \code{autoDates = TRUE}), \code{header},
+\code{width} (px, default 120), \code{format} (moment.js format,
+default \code{"YYYY-MM-DD"}), and \code{align}. A sticky header row is
+rendered at the top of the label panel and does not consume a timeline
+lane. See also \code{\link[timevis]{setColumns}}.}
+
+\item{autoDates}{If \code{TRUE}, virtual \code{"start"} / \code{"end"}
+fields used in \code{columns} are derived from items (leaf groups: min
+start / max end across items in that group; parent groups: recursive min/max
+over their \code{nestedGroups}).}
+
+\item{rowMinHeight}{Minimum row height in pixels when \code{columns} is used.
+Prevents empty rows from collapsing. Default \code{36}.}
+
+\item{ties}{Optional data.frame with \code{from} and \code{to} columns
+specifying directed connector lines between items. Each row draws a
+three-segment (horizontal-vertical-horizontal) line from the right edge of
+the \code{from} item to the left edge of the \code{to} item. An item may
+appear in multiple rows. See also \code{\link[timevis]{setTies}}.}
 }
 \value{
 A timeline visualization \code{htmlwidgets} object

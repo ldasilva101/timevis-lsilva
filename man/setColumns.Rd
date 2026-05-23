@@ -4,7 +4,7 @@
 \alias{setColumns}
 \title{Set (or update) the multi-column label panel of a timeline}
 \usage{
-setColumns(id, columns, autoDates = FALSE)
+setColumns(id, columns, autoDates = FALSE, rowMinHeight = 36)
 }
 \arguments{
 \item{id}{Timeline id or a \code{timevis} object (the output from
@@ -18,6 +18,9 @@ full description of each field.}
 
 \item{autoDates}{If \code{TRUE}, virtual \code{"start"} / \code{"end"}
 fields are derived from items. Default \code{FALSE}.}
+
+\item{rowMinHeight}{Minimum row height in pixels. Prevents empty rows from
+collapsing. Default \code{36}.}
 }
 \description{
 Render the left label panel of a timeline as a multi-column table aligned
